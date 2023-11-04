@@ -11,6 +11,7 @@ uint8_t buf[BUF_MAX];
 int buf_size;
 
 static int host_recv_pkt_cb(uint8_t *data, uint16_t len) {
+    //printf("PACKET RECEIVED SIZE %u\n", len);
     // got some data to process
     buf_size  = len;
     if (buf_size > BUF_MAX) 
@@ -19,14 +20,20 @@ static int host_recv_pkt_cb(uint8_t *data, uint16_t len) {
     for (int i = 0; i < buf_size; i++) 
         buf[i] = data[i];
 
-    return buf_size;
+    return 0;
 }
 
 
 static void host_send_pkt_available_cb(void) {
     // can do things now
+    //printf("Can send now\n");
 }
 
+
+static const esp_vhci_host_callback_t vhci_host_cb = {
+    .notify_host_send_available = host_send_pkt_available_cb,
+    .notify_host_recv = host_recv_pkt_cb,
+};
 
 esp_err_t vhci_init() {
     // controller init
@@ -36,20 +43,15 @@ esp_err_t vhci_init() {
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     bt_cfg.mode = ESP_BT_MODE_BLE;
     ret = esp_bt_controller_init(&bt_cfg);
+    //printf("Init returns %x\n", ret);
 
-    if (ret != ESP_OK)  return ret;
+    if (ret != ESP_OK) return ret;
         
     // controller enable
     esp_bt_mode_t bt_mode = ESP_BT_MODE_BLE;
-    //esp_bt_mode_t bt_mode = ESP_BT_MODE_CLASSIC_BT;
-    //esp_bt_mode_t bt_mode = ESP_BT_MODE_BTDM;
     ret = esp_bt_controller_enable(bt_mode);
+    //printf("Enable returns %x\n", ret);
     if (ret != ESP_OK) return ret;
-
-    static const esp_vhci_host_callback_t vhci_host_cb = {
-        .notify_host_send_available = host_send_pkt_available_cb,
-        .notify_host_recv = host_recv_pkt_cb,
-    };
 
     esp_vhci_host_register_callback(&vhci_host_cb);
 
@@ -61,15 +63,13 @@ esp_err_t vhci_init() {
 
 
 
-
-
 // This structure represents HCI instance objects.
 typedef struct _HCI_obj_t {
     // All objects start with the base.
     mp_obj_base_t base;
+
     // Everything below can be thought of as instance attributes, but they
     // cannot be accessed by MicroPython code directly. 
-   
     mp_uint_t initialised;
 } HCI_obj_t;
 
@@ -84,13 +84,13 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_1(HCI_receive_raw_obj, HCI_receive_raw);
 
 
 
-
 STATIC mp_obj_t HCI_send_raw(mp_obj_t self_in, mp_obj_t data_obj ) {
     mp_check_self(mp_obj_is_str_or_bytes(data_obj));
     GET_STR_DATA_LEN(data_obj, data, data_len);
 
     esp_vhci_host_send_packet((uint8_t *) data, (uint16_t) data_len);
 
+    //printf("PACKET SENT SIZE %u\n", data_len);
     return mp_obj_new_bool(1);
 }
 
@@ -168,5 +168,6 @@ const mp_obj_module_t example_user_cmodule = {
 };
 
 // Register the module to make it available in Python.
+
 MP_REGISTER_MODULE(MP_QSTR_HCI_ESP32, example_user_cmodule);
 
